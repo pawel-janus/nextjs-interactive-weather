@@ -1,53 +1,74 @@
-# Weather Dashboard - Next.js SSR POC
+# Interactive Weather Dashboard - Next.js POC
 
-Simple weather application demonstrating **Server-Side Rendering (SSR)** with Next.js 16 App Router.
+Interactive weather application demonstrating **Client Components**, **API Routes**, and **state management** with Next.js 16 App Router.
 
 ## Overview
 
-This POC explores Next.js SSR fundamentals by building a real-time weather dashboard that fetches data server-side and renders complete HTML before sending to the browser.
+This POC explores the full Next.js client/server architecture by building an interactive weather dashboard where users can search for any city, see current weather (SSR), and view recent searches stored via API Routes.
 
-**Live data:** Current weather for Warsaw from [wttr.in](https://wttr.in) API with weather icon
+**Key concepts:** Client vs Server Components boundary, API Routes with Zod validation, in-memory state, hydration, and shared TypeScript types.
 
 ## Tech Stack
 
-- **Next.js 16.3.4** - React framework with SSR
-- **React 19.2.8** - Server Components & Suspense
-- **TypeScript** - Type safety
+- **Next.js 16.3.4** - React framework with App Router
+- **React 19.2.8** - Server Components & Client Components
+- **TypeScript** - Type safety across frontend and backend
+- **Zod** - Runtime schema validation for API Routes
 - **Tailwind CSS v4** - Styling with CSS-based config
 - **Turbopack** - Fast dev server (Rust-based)
 
 ## Key Features
 
+### Interactive City Search (Client Component)
+- Input field for any city name
+- Submit button triggers API call
+- `useState` for local form state
+- `useRouter().refresh()` to re-render Server Components
+
+### Recent Searches (Client Component + API Routes)
+- Last 5 searched cities stored in-memory
+- `useEffect` fetches data on mount
+- Click to search again
+- Timestamps for each search
+
+### API Routes with Zod Validation
+- `POST /api/cities/recent` - Add city to recent searches
+- `GET /api/cities/recent` - Get last 5 cities
+- Runtime validation with Zod schemas
+- Type-safe request/response with inferred types
+
 ### Server-Side Rendering (SSR)
-- Async Server Components fetch data on every request
-- HTML includes weather data before reaching browser
-- No client-side loading spinners for initial data
+- Weather data fetched server-side (no client loading)
+- HTML includes weather before reaching browser
 - SEO-friendly (complete HTML in page source)
 
-### Suspense Boundaries
-- Loading skeleton while fetching weather data
-- Progressive rendering - instant page shell, then content
-- Better perceived performance
+### Shared TypeScript Types
+- Single source of truth: Zod schemas → TypeScript types
+- Type safety across frontend and backend
+- `types/weather.ts` imported by both Client Components and API Routes
 
-### Error Handling
-- Custom `error.tsx` boundary catches fetch failures
-- Retry button for network errors
-- Graceful degradation
-
-### Dark Mode
-- Automatic based on system preference (`prefers-color-scheme`)
-- CSS variables + Tailwind dark mode classes
-- No JavaScript required
+### Client vs Server Boundary
+- Server Components: async data fetching (weather API)
+- Client Components: user interaction (form, state)
+- Demonstrates when to use `'use client'` directive
 
 ## Project Structure
 
 ```
 app/
-  layout.tsx       # Root layout, fonts, metadata
-  page.tsx         # Weather Dashboard (SSR)
-  error.tsx        # Error boundary with retry
-  globals.css      # Tailwind + theme config
-public/            # Static assets
+  layout.tsx                    # Root layout, fonts, metadata
+  page.tsx                      # Weather Dashboard (Server Component)
+  error.tsx                     # Error boundary with retry
+  globals.css                   # Tailwind + theme config
+  api/
+    cities/
+      recent/
+        route.ts                # API Route: GET/POST recent cities
+types/
+  weather.ts                    # Shared Zod schemas + TypeScript types
+components/                     # (Phase 3 - to be added)
+  CitySelector.tsx              # Client Component: city search form
+  RecentSearches.tsx            # Client Component: recent cities list
 ```
 
 ## Getting Started
@@ -70,72 +91,130 @@ Open [http://localhost:3000](http://localhost:3000)
 
 ### Verify SSR
 
-1. Open the page in browser
+1. Open the page in browser (http://localhost:3000)
 2. Right-click → "View Page Source"
 3. Search for temperature value (e.g., "15°C")
 4. ✅ Data is in HTML source = Server-Side Rendered!
 
+### Test API Routes
+
+```bash
+# Get recent cities (should be empty initially)
+curl http://localhost:3000/api/cities/recent | jq .
+
+# Add a city
+curl -X POST http://localhost:3000/api/cities/recent \
+  -H "Content-Type: application/json" \
+  -d '{"city":"London"}' | jq .
+
+# Get recent cities again (should show London)
+curl http://localhost:3000/api/cities/recent | jq .
+
+# Test validation (should return 400)
+curl -X POST http://localhost:3000/api/cities/recent \
+  -H "Content-Type: application/json" \
+  -d '{"city":""}' | jq .
+```
+
 ## How It Works
 
-### Server Component (async)
+### API Route with Zod Validation
 ```tsx
-async function WeatherData() {
-  const res = await fetch('https://wttr.in/Warsaw?format=j1', {
-    cache: 'no-store' // Always fresh data (SSR)
-  });
+// app/api/cities/recent/route.ts
+export async function POST(request: NextRequest) {
+  const body = await request.json();
   
-  const data = await res.json();
-  const current = data.current_condition[0];
+  // Validate with Zod
+  const validationResult = addCityRequestSchema.safeParse(body);
+  if (!validationResult.success) {
+    return NextResponse.json({ success: false }, { status: 400 });
+  }
   
-  return (
-    <div>
-      <img src={current.weatherIconUrl[0].value} alt={current.weatherDesc[0].value} />
-      <div>{current.temp_C}°C</div>
-    </div>
-  );
+  const { city } = validationResult.data;
+  recentCities.set(city.toLowerCase(), { name: city, timestamp: Date.now() });
+  
+  return NextResponse.json({ success: true, city });
 }
 ```
 
-### Suspense Boundary
+### Shared Zod Schema
 ```tsx
-<Suspense fallback={<LoadingSkeleton />}>
-  <WeatherData />
-</Suspense>
+// types/weather.ts
+import { z } from 'zod';
+
+export const addCityRequestSchema = z.object({
+  city: z.string().min(1).max(100),
+});
+
+export type AddCityRequest = z.infer<typeof addCityRequestSchema>;
 ```
 
-**Flow:**
-1. Request → Next.js server
-2. Server executes `await fetch()`
-3. Server renders HTML with real data
-4. Server sends complete HTML to browser
-5. Browser displays instantly (no loading)
+### Client Component (to be added in Phase 3)
+```tsx
+'use client';
+
+function CitySelector() {
+  const [city, setCity] = useState('');
+  const router = useRouter();
+  
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    await fetch('/api/cities/recent', {
+      method: 'POST',
+      body: JSON.stringify({ city }),
+    });
+    router.refresh(); // Re-render Server Components
+  };
+  
+  return <form onSubmit={handleSubmit}>...</form>;
+}
+```
+
+**Full Flow:**
+1. User types city name → Client Component state (`useState`)
+2. Submit → POST `/api/cities/recent` (Zod validates)
+3. API saves to in-memory Map
+4. `router.refresh()` → Server Components re-render with new city
+5. Recent searches update (GET `/api/cities/recent`)
 
 ## What I Learned
 
-### Next.js 16 Features
-- **App Router** - file-based routing (`app/page.tsx` → `/`)
-- **Server Components** - async/await in components (game changer!)
-- **Suspense** - built-in loading states
-- **Error boundaries** - `error.tsx` auto-wraps pages
-
-### SSR vs CSR
-| | SSR (this POC) | CSR (traditional React) |
+### Client vs Server Components
+| | Server Component | Client Component |
 |---|---|---|
-| **First paint** | Instant (HTML ready) | Blank (wait for JS) |
-| **SEO** | Excellent (full HTML) | Poor (empty div) |
-| **Data fetching** | Server-side | Client-side (useEffect) |
-| **Loading state** | Suspense fallback | Manual useState |
+| **Directive** | None (default) | `'use client'` at top |
+| **Can be async** | ✅ Yes | ❌ No |
+| **Can use hooks** | ❌ No (useState, useEffect) | ✅ Yes |
+| **Event handlers** | ❌ No (onClick, onChange) | ✅ Yes |
+| **When to use** | Data fetching, static UI | User interaction, state |
+| **Hydration** | N/A (stays on server) | HTML → React takeover |
 
-### Tailwind v4 Changes
-- Config in CSS (`@theme inline`) not `tailwind.config.js`
-- Faster hot reload (CSS only, no JS rebuild)
-- CSS variables for design tokens
+### API Routes (App Router)
+- File: `app/api/*/route.ts` (not `pages/api/*` from Pages Router)
+- Export named functions: `GET`, `POST`, `PUT`, `DELETE`
+- Use `NextRequest` and `NextResponse` (not Node.js `req`/`res`)
+- Return `NextResponse.json()` for JSON responses
+- Validation best practice: Zod `safeParse()` before processing
+
+### Zod for Type Safety
+- **Schema definition** → automatic TypeScript types (`z.infer<>`)
+- **Runtime validation** → `safeParse()` returns `success` boolean
+- **Single source of truth** → no duplicate interfaces
+- **Shared types** → same schema for frontend and backend
+
+### Hydration Process
+1. Server renders Server Components to HTML
+2. HTML includes Client Component placeholders
+3. Browser receives HTML (instant visual)
+4. React JS bundle loads
+5. Client Components "hydrate" (HTML → interactive React)
+6. Event handlers attach, state initializes
 
 ### Next.js Conventions
-- `layout.tsx` - wraps all pages (fonts, metadata)
-- `page.tsx` - route endpoint (`export default function`)
-- `error.tsx` - auto error boundary
-- `loading.tsx` - auto Suspense fallback (not used here, manual Suspense instead)
+- `app/api/*/route.ts` - API Routes (backend endpoints)
+- `'use client'` - marks Client Component boundary
+- `useRouter()` from `'next/navigation'` (not `'next/router'`)
+- `router.refresh()` - re-render Server Components without page reload
 
 ## Build for Production
 
@@ -149,8 +228,11 @@ npm start
 Multi-stage Dockerfile optimized for Cloud Run:
 
 ```bash
-docker build -t nextjs-weather:latest .
-docker run -p 3000:3000 nextjs-weather:latest
+# Build locally
+docker build -t nextjs-interactive-weather:latest .
+
+# Run locally
+docker run -p 3000:3000 nextjs-interactive-weather:latest
 ```
 
 **Features:**
@@ -159,6 +241,8 @@ docker run -p 3000:3000 nextjs-weather:latest
 - node:20-alpine base (small footprint)
 - Non-root user for security
 - Optimized layer caching
+
+**Note:** In-memory storage (recentCities Map) resets when container restarts - this is expected for POC. Phase 3+ will add persistent storage.
 
 ## Cloud Run Deployment
 
@@ -188,11 +272,11 @@ REGION=europe-central2
 
 # 1. Build Docker image with Cloud Build
 gcloud builds submit \
-  --tag ${REGION}-docker.pkg.dev/${PROJECT_ID}/nextjs-apps/weather-dashboard:latest
+  --tag ${REGION}-docker.pkg.dev/${PROJECT_ID}/nextjs-apps/interactive-weather:latest
 
 # 2. Deploy to Cloud Run
-gcloud run deploy weather-dashboard \
-  --image=${REGION}-docker.pkg.dev/${PROJECT_ID}/nextjs-apps/weather-dashboard:latest \
+gcloud run deploy interactive-weather \
+  --image=${REGION}-docker.pkg.dev/${PROJECT_ID}/nextjs-apps/interactive-weather:latest \
   --platform=managed \
   --region=${REGION} \
   --service-account=nextjs-apps-sa@${PROJECT_ID}.iam.gserviceaccount.com \
@@ -209,51 +293,79 @@ gcloud run deploy weather-dashboard \
 After deployment, get your service URL:
 
 ```bash
-gcloud run services describe weather-dashboard \
-  --region=europe-central2 \
+gcloud run services describe interactive-weather \
+  --region=${REGION} \
   --format='value(status.url)'
 ```
 
-### Verify SSR in Production
+### Verify in Production
 
 ```bash
-# Fetch HTML and check if weather data is in the source
-curl -s $(gcloud run services describe weather-dashboard \
-  --region=europe-central2 \
-  --format='value(status.url)') | grep "°C"
+# Get the service URL
+SERVICE_URL=$(gcloud run services describe interactive-weather \
+  --region=${REGION} \
+  --format='value(status.url)')
+
+# Verify SSR (weather data in HTML source)
+curl -s ${SERVICE_URL} | grep "°C"
+
+# Test API Routes
+curl -s ${SERVICE_URL}/api/cities/recent | jq .
+curl -X POST ${SERVICE_URL}/api/cities/recent \
+  -H "Content-Type: application/json" \
+  -d '{"city":"Paris"}' | jq .
 ```
 
-If you see temperature in the output → SSR works! ✅
+If you see temperature and API responses → deployment works! ✅
+
+**Note:** In-memory storage resets on each Cloud Run cold start - expected for POC.
+
+## Development Progress
+
+### Phase 1: Project Setup ✅
+- Fork from POC #1 (nextjs-ssr-basics)
+- Clean git history
+- Package renamed to `nextjs-interactive-weather`
+- Verified local dev server works
+
+### Phase 2: API Routes ✅
+- Installed Zod for runtime validation
+- Created shared types with Zod schemas (`types/weather.ts`)
+- Implemented `GET /api/cities/recent` (returns last 5 cities)
+- Implemented `POST /api/cities/recent` (add city to in-memory Map)
+- Tested with curl (valid and invalid requests)
+
+### Phase 3: Client Components 🔄 (Next)
+- [ ] Create `CitySelector.tsx` (Client Component with useState)
+- [ ] Create `RecentSearches.tsx` (Client Component with useEffect)
+- [ ] Integrate with Server Component
+- [ ] Test full user flow
+
+### Phase 4-8: Remaining
+- UI enhancements (loading states, error handling)
+- Local testing (edge cases)
+- Docker + Cloud Run deployment
+- Documentation update
 
 ## Commits
 
 Clean git history documenting each step:
-- `Initial commit from Create Next App` - Project scaffolding
-- `Add Weather Dashboard with SSR` - Core implementation
-- `Add comprehensive documentation` - README with learnings
-- `Add weather icon from wttr.in API` - Visual enhancement
-- `Add Docker support for Cloud Run deployment` - Containerization
-
-## Future Enhancements
-
-- [ ] Multi-city support (dropdown selector)
-- [ ] 7-day forecast
-- [ ] Docker + Cloud Run deployment
-- [ ] CI/CD with GitHub Actions
+- `Initial commit - Weather Dashboard base (forked from nextjs-ssr-basics)`
+- `Add API Routes for recent cities with Zod validation`
+- (more to come as POC progresses)
 
 ## Part of React/Next.js POC Series
 
-This is POC #1 in a series exploring React and Next.js patterns:
-1. **Next.js SSR Basics** ← You are here
-2. Next.js Client Components & Hydration
-3. Next.js API Routes
-4. Next.js + Database Integration
-5. Next.js + Authentication
-6. ISR/SSG Strategies
-7. React Server Actions
+This is POC #2 in a series exploring React and Next.js patterns:
+1. ✅ **Next.js SSR Basics** - Server-Side Rendering fundamentals
+2. 🔄 **Interactive Weather Dashboard** ← You are here
+3. Next.js + Database (Firestore/Cloud SQL integration)
+4. Next.js + Authentication (Firebase Auth or NextAuth)
+5. ISR/SSG Strategies
+6. React Server Actions
 
 ---
 
-**Learning focus:** Server-Side Rendering fundamentals  
-**Status:** ✅ Core implementation complete  
-**Next:** Cloud Run deployment or new POC
+**Learning focus:** Client Components, API Routes, Client/Server boundary  
+**Status:** 🔄 Phase 2 complete (API Routes), Phase 3 in progress  
+**Next:** Client Components (CitySelector, RecentSearches)
