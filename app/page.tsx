@@ -1,7 +1,9 @@
 import { Suspense } from 'react';
+import { CitySelector } from '@/app/_components/CitySelector';
+import { RecentSearches } from '@/app/_components/RecentSearches';
 
-async function WeatherData() {
-  const res = await fetch('https://wttr.in/Warsaw?format=j1', {
+async function WeatherData({ city }: { city: string }) {
+  const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`, {
     cache: 'no-store', // Always fetch fresh data (SSR)
   });
 
@@ -56,17 +58,36 @@ function LoadingWeather() {
   );
 }
 
-export default function WeatherDashboard() {
+export default async function WeatherDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ city?: string }>;
+}) {
+  const params = await searchParams;
+  const city = params.city || 'Warsaw';
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center p-8">
-        <h1 className="text-4xl font-bold mb-8 text-foreground">
-          Warsaw Weather
+      <div className="text-center p-8 space-y-8">
+        <h1 className="text-4xl font-bold text-foreground">
+          Interactive Weather Dashboard
         </h1>
 
-        <Suspense fallback={<LoadingWeather />}>
-          <WeatherData />
-        </Suspense>
+        {/* City search form (Client Component) */}
+        <CitySelector />
+
+        {/* Current city weather */}
+        <div className="space-y-2">
+          <h2 className="text-2xl font-semibold text-foreground">
+            {city}
+          </h2>
+          <Suspense fallback={<LoadingWeather />}>
+            <WeatherData city={city} />
+          </Suspense>
+        </div>
+
+        {/* Recent searches (Client Component) */}
+        <RecentSearches />
       </div>
     </div>
   );

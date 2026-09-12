@@ -21,15 +21,17 @@ This POC explores the full Next.js client/server architecture by building an int
 
 ### Interactive City Search (Client Component)
 - Input field for any city name
-- Submit button triggers API call
+- Submit button triggers API call + navigation
 - `useState` for local form state
-- `useRouter().refresh()` to re-render Server Components
+- `useTransition` for pending state (loading indicator)
+- `router.push()` to update URL with new city
+- Error handling with client-side validation
 
 ### Recent Searches (Client Component + API Routes)
 - Last 5 searched cities stored in-memory
-- `useEffect` fetches data on mount
-- Click to search again
-- Timestamps for each search
+- `useEffect` with `useSearchParams` dependency (auto-refresh on URL change)
+- Click to search again (updates URL)
+- Timestamps for each search (sorted newest first)
 
 ### API Routes with Zod Validation
 - `POST /api/cities/recent` - Add city to recent searches
@@ -57,18 +59,18 @@ This POC explores the full Next.js client/server architecture by building an int
 ```
 app/
   layout.tsx                    # Root layout, fonts, metadata
-  page.tsx                      # Weather Dashboard (Server Component)
+  page.tsx                      # Weather Dashboard (Server Component, async)
   error.tsx                     # Error boundary with retry
   globals.css                   # Tailwind + theme config
+  _components/                  # Private components (not routes)
+    CitySelector.tsx            # Client Component: city search form
+    RecentSearches.tsx          # Client Component: recent cities list
   api/
     cities/
       recent/
         route.ts                # API Route: GET/POST recent cities
 types/
   weather.ts                    # Shared Zod schemas + TypeScript types
-components/                     # (Phase 3 - to be added)
-  CitySelector.tsx              # Client Component: city search form
-  RecentSearches.tsx            # Client Component: recent cities list
 ```
 
 ## Getting Started
@@ -89,12 +91,21 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000)
 
+### Usage
+
+1. **Default view:** Warsaw weather (SSR)
+2. **Search city:** Type city name (e.g., "London") → Submit
+3. **Recent searches:** Click any recent city to view its weather
+4. **URL changes:** Notice URL updates to `/?city=London`
+5. **Auto-refresh:** Recent searches update automatically after search
+
 ### Verify SSR
 
 1. Open the page in browser (http://localhost:3000)
 2. Right-click → "View Page Source"
-3. Search for temperature value (e.g., "15°C")
+3. Search for temperature value (e.g., "13°C")
 4. ✅ Data is in HTML source = Server-Side Rendered!
+5. Search for city name in source → also present before JS loads
 
 ### Test API Routes
 
@@ -149,33 +160,59 @@ export const addCityRequestSchema = z.object({
 export type AddCityRequest = z.infer<typeof addCityRequestSchema>;
 ```
 
-### Client Component (to be added in Phase 3)
+### Client Component (CitySelector)
 ```tsx
+// app/_components/CitySelector.tsx
 'use client';
 
-function CitySelector() {
+export function CitySelector() {
   const [city, setCity] = useState('');
+  const [isPending, startTransition] = useTransition();
   const router = useRouter();
   
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    
+    // POST to API
     await fetch('/api/cities/recent', {
       method: 'POST',
-      body: JSON.stringify({ city }),
+      body: JSON.stringify({ city: city.trim() }),
     });
-    router.refresh(); // Re-render Server Components
+    
+    // Navigate to new city (updates URL)
+    startTransition(() => {
+      router.push(`/?city=${encodeURIComponent(city.trim())}`);
+    });
   };
   
   return <form onSubmit={handleSubmit}>...</form>;
 }
 ```
 
-**Full Flow:**
-1. User types city name → Client Component state (`useState`)
-2. Submit → POST `/api/cities/recent` (Zod validates)
-3. API saves to in-memory Map
-4. `router.refresh()` → Server Components re-render with new city
-5. Recent searches update (GET `/api/cities/recent`)
+### Server Component (page.tsx)
+```tsx
+// app/page.tsx
+export default async function WeatherDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ city?: string }>;  // Promise in Next.js 15+
+}) {
+  const params = await searchParams;
+  const city = params.city || 'Warsaw';
+  
+  return (
+    <div>
+      <CitySelector />  {/* Client Component */}
+      
+      <Suspense fallback={<LoadingWeather />}>
+        <WeatherData city={city} />  {/* Server Component */}
+      </Suspense>
+      
+      <RecentSearches />  {/* Client Component */}
+    </div>
+  );
+}
+```
 
 ## What I Learned
 
@@ -320,6 +357,31 @@ If you see temperature and API responses → deployment works! ✅
 
 **Note:** In-memory storage resets on each Cloud Run cold start - expected for POC.
 
+## How It Works - Full Flow
+
+1. **User visits page** (`/?city=Warsaw` or `/`)
+   - Server Component (`page.tsx`) receives `searchParams` as Promise
+   - `await searchParams` to get city (default: Warsaw)
+   - Server fetches weather data (SSR)
+   - Streams HTML to browser (Suspense boundary)
+
+2. **User types new city** (e.g., "London") in CitySelector
+   - Client Component with `useState` for form input
+   - Submit → POST to `/api/cities/recent`
+   - API validates with Zod, saves to in-memory Map
+   - `router.push('/?city=London')` → URL changes
+
+3. **URL change triggers re-render**
+   - Server Component re-renders with new `searchParams`
+   - Fetches weather for London (SSR)
+   - RecentSearches detects URL change (`useSearchParams` dependency)
+   - Re-fetches recent cities list
+
+4. **User clicks recent city**
+   - POST to `/api/cities/recent` (update timestamp)
+   - `router.push('/?city=XXX')` → navigates to that city
+   - Cycle repeats from step 1
+
 ## Development Progress
 
 ### Phase 1: Project Setup ✅
@@ -335,30 +397,66 @@ If you see temperature and API responses → deployment works! ✅
 - Implemented `POST /api/cities/recent` (add city to in-memory Map)
 - Tested with curl (valid and invalid requests)
 
-### Phase 3: Client Components 🔄 (Next)
-- [ ] Create `CitySelector.tsx` (Client Component with useState)
-- [ ] Create `RecentSearches.tsx` (Client Component with useEffect)
-- [ ] Integrate with Server Component
-- [ ] Test full user flow
+### Phase 3: Client Components ✅
+- Created `CitySelector.tsx` (Client Component with useState)
+- Created `RecentSearches.tsx` (Client Component with useEffect)
+- Both components in `app/_components/` (private, not routes)
+- Form validation and error handling
 
-### Phase 4-8: Remaining
-- UI enhancements (loading states, error handling)
-- Local testing (edge cases)
+### Phase 4: Server/Client Integration ✅
+- Integrated Client Components in `page.tsx` (Server Component)
+- Dynamic city via `searchParams` (Promise in Next.js 15+)
+- `router.push()` for navigation (updates URL)
+- `useSearchParams()` dependency for auto re-fetch
+- Full interactive flow working (search → save → display → recent)
+
+### Phase 5-8: Remaining
+- UI enhancements (loading states, better styling)
+- Local testing (edge cases, error scenarios)
 - Docker + Cloud Run deployment
-- Documentation update
+- Final documentation polish
 
 ## Commits
 
 Clean git history documenting each step:
-- `Initial commit - Weather Dashboard base (forked from nextjs-ssr-basics)`
-- `Add API Routes for recent cities with Zod validation`
-- (more to come as POC progresses)
+1. `Initial commit - Weather Dashboard base (forked from nextjs-ssr-basics)`
+2. `Add API Routes for recent cities with Zod validation`
+3. `Update documentation for POC #2 Interactive Weather Dashboard`
+4. `Add Client Components for city selection`
+5. `Refactor: move components to app/_components for better architecture`
+6. `Integrate Server and Client Components` (Phase 4 - this commit)
+
+Each commit represents a complete working state with clear architectural reasoning.
+
+## Key Learnings
+
+### Next.js 15 Changes
+- `searchParams` is now a **Promise** (async Dynamic API)
+- Must use `await searchParams` in Server Components
+- Improves Streaming SSR performance (can send partial HTML earlier)
+
+### Client vs Server Components
+- **Server:** async functions, fetch data, no hooks, no event handlers
+- **Client:** `'use client'`, useState/useEffect, onClick, forms
+- Server Components can import Client Components (composition pattern)
+- Client Components cannot import Server Components directly
+
+### API Routes Pattern
+- In-memory state lives in `route.ts` (single source of truth)
+- Shared logic goes in `lib/` (pure functions only, no state!)
+- Zod validation at API boundary (runtime safety)
+- Type inference from Zod schemas (single schema → TS types)
+
+### Reactive Updates
+- `useSearchParams()` as dependency → auto re-fetch on URL change
+- `router.push()` for client-side navigation
+- Server Components re-render when searchParams change
 
 ## Part of React/Next.js POC Series
 
 This is POC #2 in a series exploring React and Next.js patterns:
 1. ✅ **Next.js SSR Basics** - Server-Side Rendering fundamentals
-2. 🔄 **Interactive Weather Dashboard** ← You are here
+2. ✅ **Interactive Weather Dashboard** ← You are here
 3. Next.js + Database (Firestore/Cloud SQL integration)
 4. Next.js + Authentication (Firebase Auth or NextAuth)
 5. ISR/SSG Strategies
@@ -367,5 +465,5 @@ This is POC #2 in a series exploring React and Next.js patterns:
 ---
 
 **Learning focus:** Client Components, API Routes, Client/Server boundary  
-**Status:** 🔄 Phase 2 complete (API Routes), Phase 3 in progress  
-**Next:** Client Components (CitySelector, RecentSearches)
+**Status:** ✅ Core implementation complete (Phase 1-4)  
+**Next:** Deploy to Cloud Run, then POC #3 (Database integration)

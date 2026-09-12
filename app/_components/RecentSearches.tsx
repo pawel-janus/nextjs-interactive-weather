@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { RecentCity } from '@/types/weather';
 
 export function RecentSearches() {
@@ -9,10 +9,11 @@ export function RecentSearches() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     fetchRecentCities();
-  }, []);
+  }, [searchParams]); // Re-fetch when URL changes
 
   const fetchRecentCities = async () => {
     try {
@@ -44,11 +45,8 @@ export function RecentSearches() {
         body: JSON.stringify({ city: cityName }),
       });
 
-      // Refresh to show weather for clicked city
-      router.refresh();
-
-      // Refresh recent cities list
-      fetchRecentCities();
+      // Navigate to show weather for clicked city (updates URL)
+      router.push(`/?city=${encodeURIComponent(cityName)}`);
     } catch (err) {
       console.error('Error selecting city:', err);
     }

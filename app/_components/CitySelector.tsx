@@ -33,10 +33,10 @@ export function CitySelector() {
         return;
       }
 
-      // Clear input and refresh Server Components to show new weather
+      // Clear input and navigate to new city (updates URL searchParams)
       setCity('');
       startTransition(() => {
-        router.refresh();
+        router.push(`/?city=${encodeURIComponent(trimmedCity)}`);
       });
     } catch (err) {
       setError('Something went wrong');
