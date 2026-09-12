@@ -410,11 +410,20 @@ If you see temperature and API responses → deployment works! ✅
 - `useSearchParams()` dependency for auto re-fetch
 - Full interactive flow working (search → save → display → recent)
 
-### Phase 5-8: Remaining
-- UI enhancements (loading states, better styling)
-- Local testing (edge cases, error scenarios)
-- Docker + Cloud Run deployment
-- Final documentation polish
+### Phase 5-6: Skipped
+- UI enhancements - not needed for POC (already polished)
+- Formal testing - already tested during development
+
+### Phase 7: Cloud Run Deployment ✅
+- Docker build with Cloud Build
+- Deployed to Cloud Run (europe-central2)
+- Production testing (SSR + API Routes + dynamic routing verified)
+- In-memory storage working (resets on cold start - expected)
+
+### Phase 8: GitHub ✅
+- Repository created and pushed
+- 6 clean commits documenting each phase
+- Private repository with full documentation
 
 ## Commits
 
@@ -424,9 +433,11 @@ Clean git history documenting each step:
 3. `Update documentation for POC #2 Interactive Weather Dashboard`
 4. `Add Client Components for city selection`
 5. `Refactor: move components to app/_components for better architecture`
-6. `Integrate Server and Client Components` (Phase 4 - this commit)
+6. `Integrate Server and Client Components (Phase 4)`
 
 Each commit represents a complete working state with clear architectural reasoning.
+
+**GitHub:** https://github.com/pawel-janus/nextjs-interactive-weather
 
 ## Key Learnings
 
@@ -465,5 +476,7 @@ This is POC #2 in a series exploring React and Next.js patterns:
 ---
 
 **Learning focus:** Client Components, API Routes, Client/Server boundary  
-**Status:** ✅ Core implementation complete (Phase 1-4)  
-**Next:** Deploy to Cloud Run, then POC #3 (Database integration)
+**Status:** ✅ Complete (local development + Cloud Run deployment + GitHub)  
+**Production URL:** https://interactive-weather-216135873902.europe-central2.run.app  
+**Repository:** https://github.com/pawel-janus/nextjs-interactive-weather  
+**Next POC:** #3 - Forms in React & Next.js
