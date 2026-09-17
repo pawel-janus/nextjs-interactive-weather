@@ -290,12 +290,13 @@ docker run -p 3000:3000 nextjs-interactive-weather:latest
 # 1. Create Artifact Registry repository (one-time setup for all Next.js POCs)
 gcloud artifacts repositories create nextjs-apps \
   --repository-format=docker \
-  --location=europe-central2 \
-  --description="Docker images for Next.js POC applications"
+  --location=YOUR_REGION \
+  --project=YOUR_PROJECT_ID
 
 # 2. Create Service Account (one-time setup for all Next.js POCs)
 gcloud iam service-accounts create nextjs-apps-sa \
-  --display-name="Next.js Applications Service Account"
+  --display-name="Next.js Applications Service Account" \
+  --project=YOUR_PROJECT_ID
 ```
 
 **Note:** These are shared resources for all Next.js POC applications.
