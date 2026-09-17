@@ -305,8 +305,8 @@ gcloud iam service-accounts create nextjs-apps-sa \
 
 ```bash
 # Set variables
-PROJECT_ID=your-gcp-project-id
-REGION=europe-central2
+PROJECT_ID=YOUR_PROJECT_ID
+REGION=YOUR_REGION  # e.g., europe-central2, us-central1
 
 # 1. Build Docker image with Cloud Build
 gcloud builds submit \
@@ -417,7 +417,7 @@ If you see temperature and API responses → deployment works! ✅
 
 ### Phase 7: Cloud Run Deployment ✅
 - Docker build with Cloud Build
-- Deployed to Cloud Run (europe-central2)
+- Deployed to Cloud Run
 - Production testing (SSR + API Routes + dynamic routing verified)
 - In-memory storage working (resets on cold start - expected)
 
