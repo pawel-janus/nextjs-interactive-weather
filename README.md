@@ -477,6 +477,6 @@ This is POC #2 in a series exploring React and Next.js patterns:
 
 **Learning focus:** Client Components, API Routes, Client/Server boundary  
 **Status:** ✅ Complete (local development + Cloud Run deployment + GitHub)  
-**Production URL:** https://interactive-weather-216135873902.europe-central2.run.app  
+**Production:** Deployed to Cloud Run (use command above to get URL)  
 **Repository:** https://github.com/pawel-janus/nextjs-interactive-weather  
 **Next POC:** #3 - Forms in React & Next.js
